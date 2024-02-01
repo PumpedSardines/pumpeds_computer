@@ -38,12 +38,11 @@ The operation data can be thought of as first 4 bits specifying the data in inpu
 Here is a table for how to interpret input 1 and input 2 depending on the first bits:
 
 | 4 bit combination | input 1     | Input 2 |
----------------------------------------------
+|-------------------|-------------|---------|
 | 0000              | reg         | reg     |
 | 0001              | reg         | immed   |
 | 0010              | immed       | reg     |
 | 0011              | immed       | const   |
----------------------------------------------
 
 Immediate means that the value in input is a constant value that should be used directly. Otherwise it will index the register with that index. Remember that input/output and the clock are also concidered "registers"
 
@@ -52,7 +51,7 @@ Immediate means that the value in input is a constant value that should be used 
 Here is a table of what type of operation has what bit number:
 
 | 4 bit combination | Operation  |
-----------------------------------
+|-------------------|------------|
 | 0000              | alu        |
 | 0001              | float_alu  |
 | 0010              | cond       |
@@ -64,7 +63,6 @@ Here is a table of what type of operation has what bit number:
 | 1000              | stack_pop  |
 | 1001              | call       |
 | 1010              | ret        |
-----------------------------------
 
 
 Each operation has it's own file that you can be read more about!
