@@ -2,7 +2,7 @@ use compiler::Instruction;
 use regex::Regex;
 use std::collections::HashMap;
 
-const example: &'static str = include_str!("example.asm");
+const CODE: &'static str = include_str!("robot_racing.asm");
 
 enum CodeType {
     Instruction(Instruction),
@@ -71,11 +71,11 @@ fn assemble(instructions: Vec<CodeType>) -> Vec<(u32, u32, u32, u32)> {
 }
 
 fn main() {
-    let outp = assemble(parse_code(example.to_string()))
+    let output = assemble(parse_code(CODE.to_string()))
         .into_iter()
         .map(|(a, b, c, d)| format!("{:#010x} {:#010x} {:#010x} {:#010x}", a, b, c, d))
         .collect::<Vec<String>>()
         .join("\n");
 
-    println!("{}", outp);
+    println!("{}", output);
 }

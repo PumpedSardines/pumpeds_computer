@@ -13,6 +13,26 @@ enum Op {
     Shr,
     Not,
     Neg,
+    Eq,
+    Ne,
+    ULt,
+    ULte,
+    UGt,
+    UGte,
+    ILt,
+    ILte,
+    IGt,
+    IGte,
+    JumpAlways,
+    JumpIfTrue,
+    JumpIfFalse,
+    RamSave,
+    RamLoad,
+    Halt,
+    Push,
+    Pop,
+    Call,
+    Ret,
 }
 
 #[derive(PartialEq, Eq)]
@@ -42,6 +62,26 @@ impl Instruction {
             "shr" => Some(Op::Shr),
             "not" => Some(Op::Not),
             "neg" => Some(Op::Neg),
+            "eq" => Some(Op::Eq),
+            "ne" => Some(Op::Ne),
+            "u_lt" => Some(Op::ULt),
+            "u_lte" => Some(Op::ULte),
+            "u_gt" => Some(Op::UGt),
+            "u_gte" => Some(Op::UGte),
+            "i_lt" => Some(Op::ILt),
+            "i_lte" => Some(Op::ILte),
+            "i_gt" => Some(Op::IGt),
+            "i_gte" => Some(Op::IGte),
+            "jmp" => Some(Op::JumpAlways),
+            "jt" => Some(Op::JumpIfTrue),
+            "jf" => Some(Op::JumpIfFalse),
+            "sram" => Some(Op::RamSave),
+            "lram" => Some(Op::RamLoad),
+            "halt" => Some(Op::Halt),
+            "push" => Some(Op::Push),
+            "pop" => Some(Op::Pop),
+            "call" => Some(Op::Call),
+            "ret" => Some(Op::Ret),
             _ => None,
         }
     }
@@ -60,6 +100,26 @@ impl Instruction {
             Op::Shr => 4,
             Op::Not => 3,
             Op::Neg => 3,
+            Op::Eq => 4,
+            Op::Ne => 4,
+            Op::ULt => 4,
+            Op::ULte => 4,
+            Op::UGt => 4,
+            Op::UGte => 4,
+            Op::ILt => 4,
+            Op::ILte => 4,
+            Op::IGt => 4,
+            Op::IGte => 4,
+            Op::JumpAlways => 2,
+            Op::JumpIfTrue => 3,
+            Op::JumpIfFalse => 3,
+            Op::RamSave => 3,
+            Op::RamLoad => 3,
+            Op::Halt => 2,
+            Op::Push => 2,
+            Op::Pop => 2,
+            Op::Call => 2,
+            Op::Ret => 1,
         }
     }
 
@@ -70,7 +130,8 @@ impl Instruction {
             return Ok(None);
         }
 
-        let op = Self::op(&parts[0].to_string()).ok_or("Unknown instruction")?;
+        let op =
+            Self::op(&parts[0].to_string()).ok_or(format!("Unknown instruction: {}", parts[0]))?;
         let len = Self::op_len(&op);
 
         if parts.len() != len {
@@ -86,9 +147,22 @@ impl Instruction {
     }
 
     fn parse_val(val: &String, label_set: &HashMap<String, u32>) -> Option<(u32, ValType)> {
+        if val == &String::from("clock") {
+            return Some((14, ValType::Reg));
+        }
+
+        if val == &String::from("input") || val == &String::from("output") {
+            return Some((13, ValType::Reg));
+        }
+
         if val.starts_with("r") {
             let reg = val[1..].parse::<u32>().ok()?;
             return Some((reg, ValType::Reg));
+        }
+
+        if val.starts_with("-") {
+            let imm = val.parse::<i32>().ok()?;
+            return Some((imm as u32, ValType::Immediate));
         }
 
         if val.starts_with("0x") {
@@ -113,6 +187,15 @@ impl Instruction {
     ) -> Result<(u32, u32, u32, u32), Box<dyn std::error::Error>> {
         const ALU: u32 = 0b0000 << 24;
         const FALU: u32 = 0b0001 << 24;
+        const COND: u32 = 0b0010 << 24;
+        const JUMP: u32 = 0b0011 << 24;
+        const RAM_SAVE: u32 = 0b0100 << 24;
+        const RAM_LOAD: u32 = 0b0101 << 24;
+        const HALT: u32 = 0b0110 << 24;
+        const STACK_PUSH: u32 = 0b0111 << 24;
+        const STACK_POP: u32 = 0b1000 << 24;
+        const CALL: u32 = 0b1001 << 24;
+        const RET: u32 = 0b1010 << 24;
 
         const ADD: u32 = 0x00;
         const SUB: u32 = 0x01;
@@ -126,8 +209,28 @@ impl Instruction {
         const NOT: u32 = 0x09;
         const NEG: u32 = 0x0A;
 
+        const EQ: u32 = 0x00;
+        const NE: u32 = 0x01;
+        const U_LT: u32 = 0x02;
+        const U_LTE: u32 = 0x03;
+        const U_GT: u32 = 0x04;
+        const U_GTE: u32 = 0x05;
+        const I_LT: u32 = 0x06;
+        const I_LTE: u32 = 0x07;
+        const I_GT: u32 = 0x08;
+        const I_GTE: u32 = 0x09;
+
+        const JUMP_IF_TRUE: u32 = 0x00;
+        const JUMP_IF_FALSE: u32 = 0x01;
+
+        const HALT_OK: u32 = 0x00;
+        const HALT_ERR: u32 = 0x01;
+
         const ADDR1_CONST: u32 = 0b0001 << 28;
         const ADDR2_CONST: u32 = 0b0010 << 28;
+
+        const INPUT_OUTPUT_REG: u32 = 13;
+        const CLOCK_REG: u32 = 14;
 
         match self.op {
             Op::Mov => {
@@ -148,13 +251,99 @@ impl Instruction {
 
                 return Ok((op_byte, 0, src, dst));
             }
+            Op::Ret => {
+                let op_byte = RET;
+
+                return Ok((op_byte, 0, 0, CLOCK_REG));
+            }
+            Op::Call => {
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid dst")?;
+
+                let mut op_byte = CALL;
+
+                if dst_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                return Ok((op_byte, CLOCK_REG, dst, 0));
+            }
+            Op::Push => {
+                let (src, src_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
+
+                let mut op_byte = STACK_PUSH;
+
+                if src_t != ValType::Reg {
+                    op_byte |= ADDR1_CONST;
+                }
+
+                return Ok((op_byte, src, 0, 0));
+            }
+            Op::Pop => {
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid dst")?;
+
+                let op_byte = STACK_POP;
+
+                if dst_t != ValType::Reg {
+                    return Err("Invalid dst".into());
+                }
+
+                return Ok((op_byte, 0, 0, dst));
+            }
+            Op::RamLoad => {
+                let (src, src_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[1], label_set).ok_or("Invalid src")?;
+
+                let mut op_byte = RAM_LOAD;
+
+                if src_t != ValType::Reg {
+                    op_byte |= ADDR1_CONST;
+                }
+                if dst_t != ValType::Reg {
+                    return Err("Invalid dst".into());
+                }
+
+                return Ok((op_byte, src, 0, dst));
+            }
+            Op::Halt => {
+                let mut op_byte = HALT;
+
+                match self.vals[0] {
+                    ref s if s == "ok" => op_byte |= HALT_OK,
+                    ref s if s == "err" => op_byte |= HALT_ERR,
+                    _ => return Err("Invalid halt type".into()),
+                }
+
+                return Ok((op_byte, 0, 0, 0));
+            }
+            Op::RamSave => {
+                let (src_1, src_1_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
+                let (src_2, src_2_t) =
+                    Self::parse_val(&self.vals[1], label_set).ok_or("Invalid src")?;
+
+                let mut op_byte = RAM_SAVE;
+
+                if src_1_t != ValType::Reg {
+                    op_byte |= ADDR1_CONST;
+                }
+                if src_2_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                return Ok((op_byte, src_1, src_2, 0));
+            }
             Op::Not | Op::Neg => {
                 let (src, src_t) =
                     Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
                 let (dst, dst_t) =
                     Self::parse_val(&self.vals[1], label_set).ok_or("Invalid dst")?;
 
-                let mut op_byte = ALU | ADDR2_CONST;
+                let mut op_byte = ALU | ADDR1_CONST;
 
                 op_byte = match self.op {
                     Op::Not => op_byte | NOT,
@@ -167,10 +356,46 @@ impl Instruction {
                 }
 
                 if src_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                return Ok((op_byte, 0, src, dst));
+            }
+            Op::JumpAlways => {
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid dst")?;
+
+                let mut op_byte = JUMP | JUMP_IF_TRUE | ADDR1_CONST;
+
+                if dst_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                return Ok((op_byte, 1, dst, 0));
+            }
+            Op::JumpIfTrue | Op::JumpIfFalse => {
+                let (src, src_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[1], label_set).ok_or("Invalid dst")?;
+
+                let mut op_byte = JUMP | ADDR2_CONST;
+
+                op_byte = match self.op {
+                    Op::JumpIfTrue => op_byte | JUMP_IF_TRUE,
+                    Op::JumpIfFalse => op_byte | JUMP_IF_FALSE,
+                    _ => unreachable!(),
+                };
+
+                if src_t != ValType::Reg {
                     op_byte |= ADDR1_CONST;
                 }
 
-                return Ok((op_byte, src, 0, dst));
+                if dst_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                return Ok((op_byte, src, dst, 0));
             }
             Op::Add
             | Op::Sub
@@ -200,6 +425,53 @@ impl Instruction {
                     Op::Xor => op_byte | XOR,
                     Op::Shl => op_byte | SHL,
                     Op::Shr => op_byte | SHR,
+                    _ => unreachable!(),
+                };
+
+                if src_1_t != ValType::Reg {
+                    op_byte |= ADDR1_CONST;
+                }
+                if src_2_t != ValType::Reg {
+                    op_byte |= ADDR2_CONST;
+                }
+
+                if dst_t != ValType::Reg {
+                    return Err("Invalid dst".into());
+                }
+
+                return Ok((op_byte, src_1, src_2, dst));
+            }
+
+            Op::Eq
+            | Op::Ne
+            | Op::ULt
+            | Op::ULte
+            | Op::UGt
+            | Op::UGte
+            | Op::ILt
+            | Op::ILte
+            | Op::IGt
+            | Op::IGte => {
+                let (src_1, src_1_t) =
+                    Self::parse_val(&self.vals[0], label_set).ok_or("Invalid src")?;
+                let (src_2, src_2_t) =
+                    Self::parse_val(&self.vals[1], label_set).ok_or("Invalid src")?;
+                let (dst, dst_t) =
+                    Self::parse_val(&self.vals[2], label_set).ok_or("Invalid dst")?;
+
+                let mut op_byte = COND;
+
+                op_byte = match self.op {
+                    Op::Eq => op_byte | EQ,
+                    Op::Ne => op_byte | NE,
+                    Op::ULt => op_byte | U_LT,
+                    Op::ULte => op_byte | U_LTE,
+                    Op::UGt => op_byte | U_GT,
+                    Op::UGte => op_byte | U_GTE,
+                    Op::ILt => op_byte | I_LT,
+                    Op::ILte => op_byte | I_LTE,
+                    Op::IGt => op_byte | I_GT,
+                    Op::IGte => op_byte | I_GTE,
                     _ => unreachable!(),
                 };
 

@@ -2,14 +2,14 @@
 
 ## Registers
 
-14 Int registers
+15 Int registers
 
-r0 to r13
+r0 to r14
 
 *Special registers:*
 r11 - stack pointer (stores the stack)
-r12 - for flags from previous operations
 r13 - input output, only used to solve some levels
+r14 - clock
 
 ## Instructions
 
@@ -29,14 +29,19 @@ First 4 bits decide what type of data comes next
 
 Next 4 bits decides type of operation
 
-| 4 bit combination | Op       |
---------------------------------
-| 0000              | alu      |
-| 0001              | falu     |
-| 0010              | cond     |
-| 0011              | jump     |
-| 0100              | ram_save |
-| 0101              | ram_load |
+| 4 bit combination | Op         |
+----------------------------------
+| 0000              | alu        |
+| 0001              | falu       |
+| 0010              | cond       |
+| 0011              | jump       |
+| 0100              | ram_save   |
+| 0101              | ram_load   |
+| 0110              | halt       |
+| 0111              | stack_push |
+| 1000              | stack_pop  |
+| 1001              | call       |
+| 1010              | ret        |
 
 
 ### ALU
@@ -60,18 +65,35 @@ Last 8 bits
 todo
 
 ### COND
+Stores 1 in result if it's true, otherwise 0
+
+
 Last 8 bits
 
-| 8 bit combination | Op     |
-------------------------------
-| 0x00              | Add    |
-| 0x01              | Sub    |
-| 0x02              | And    |
-| 0x03              | Or     |
-| 0x04              | Nand   |
-| 0x05              | Nor    |
-| 0x06              | Xor    |
-| 0x07              | Shl    |
-| 0x08              | Shr    |
-| 0x09              | Not    |
-| 0x0A              | Neg    |
+| 8 bit combination | Op       |
+--------------------------------
+| 0x00              | EQ       |
+| 0x01              | NEQ      |
+| 0x02              | U_LT     |
+| 0x03              | U_LTE    |
+| 0x04              | U_GT     |
+| 0x05              | U_GTE    |
+| 0x06              | I_LT     |
+| 0x07              | I_LTE    |
+| 0x08              | I_GT     |
+| 0x09              | I_GTE    |
+
+### JUMP
+
+| 8 bit combination | Op       |
+--------------------------------
+| 0x00              | True     |
+| 0x01              | False    |
+
+
+### HALT
+
+| 8 bit combination | Op       |
+--------------------------------
+| 0x00              | OK       |
+| 0x01              | ERROR    |
